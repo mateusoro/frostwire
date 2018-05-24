@@ -22,8 +22,13 @@ import android.content.Context;
 import android.support.annotation.NonNull;
 
 import com.android.billingclient.api.BillingClient;
+import com.android.billingclient.api.Purchase;
 import com.android.billingclient.api.PurchasesUpdatedListener;
 import com.frostwire.util.Logger;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author gubatron
@@ -31,7 +36,7 @@ import com.frostwire.util.Logger;
  */
 public final class PlayStore2 extends StoreBase {
 
-    private static final Logger LOG = Logger.getLogger(PlayStore.class);
+    private static final Logger LOG = Logger.getLogger(PlayStore2.class);
 
     // Taken from: Google Play Developer Console -> Services & APIs
     // Base64-encoded RSA public key to include in your binary.
@@ -39,6 +44,8 @@ public final class PlayStore2 extends StoreBase {
 
     private BillingClient billingClient;
     private PurchasesUpdatedListener purchasesUpdatedListener;
+
+    private final List<Purchase> purchases = new ArrayList<>();
 
     private static final Object lock = new Object();
     private static PlayStore2 instance;
@@ -53,9 +60,25 @@ public final class PlayStore2 extends StoreBase {
         }
     }
 
-    public PlayStore2(Context context) {
+    private PlayStore2(Context context) {
         purchasesUpdatedListener = (responseCode, purchases) -> {
+            if (purchases == null) {
+                // could be the result of a call to endAsync
+                LOG.info("onPurchasesUpdated() - purchases collection is null");
+                return;
+            }
 
+            if (responseCode == BillingClient.BillingResponse.OK) {
+                for (Purchase purchase : purchases) {
+                    handlePurchase(purchase);
+                }
+                // TODO:
+                //mBillingUpdatesListener.onPurchasesUpdated(mPurchases);
+            } else if (responseCode == BillingClient.BillingResponse.USER_CANCELED) {
+                LOG.info("onPurchasesUpdated() - user cancelled the purchase flow - skipping");
+            } else {
+                LOG.info("onPurchasesUpdated() got unknown resultCode: " + responseCode);
+            }
         };
 
         billingClient = BillingClient.newBuilder(context)
@@ -71,5 +94,25 @@ public final class PlayStore2 extends StoreBase {
     @Override
     public void purchase(Activity activity, Product p) {
 
+    }
+
+    private void handlePurchase(Purchase purchase) {
+        if (!verifyValidSignature(purchase.getOriginalJson(), purchase.getSignature())) {
+            Log.i(TAG, "Got a purchase: " + purchase + "; but signature is bad. Skipping...");
+            return;
+        }
+
+        Log.d(TAG, "Got a verified purchase: " + purchase);
+
+        purchases.add(purchase);
+    }
+
+    private static boolean verifyValidSignature(String signedData, String signature) {
+        try {
+            return Security.verifyPurchase(base64EncodedPublicKey, signedData, signature);
+        } catch (IOException e) {
+            Log.e(TAG, "Got an exception trying to validate a purchase: " + e);
+            return false;
+        }
     }
 }
