@@ -18,8 +18,11 @@
 package com.frostwire.android.offers;
 
 import android.app.Activity;
+import android.content.Context;
+import android.support.annotation.NonNull;
 
 import com.android.billingclient.api.BillingClient;
+import com.android.billingclient.api.PurchasesUpdatedListener;
 import com.frostwire.util.Logger;
 
 /**
@@ -35,6 +38,30 @@ public final class PlayStore2 extends StoreBase {
     private static final String base64EncodedPublicKey = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAn4zB2rCYz3oXs33iFIHagzwpca0AEvRYHyr2xOW9gGwBokU51LdIjzq5NOzj3++aa9vIvj/K9eFHCPxkXa5g2qjm1+lc+fJwIEA/hAnA4ZIee3KrD52kyTqfZfhEYGklzvarbo3WN2gcUzwvvsVP9e1UZqtoYgFDThttKaFUboqqt1424lp7C2da89WTgHNpUyykIwQ1zYR34YOQ23SFPesSx8Fmz/Nz2rAHBNuFy13OE2LWPK+kLfm8P+tUAOcDSlq0NuT/FkuGpvziPaOS5BVpvfiAjjnUNLfH7dEO5wh7RPAskcNhQH1ykp6RauZFryMJbbHUe6ydGRHzpRkRpwIDAQAB";
 
     private BillingClient billingClient;
+    private PurchasesUpdatedListener purchasesUpdatedListener;
+
+    private static final Object lock = new Object();
+    private static PlayStore2 instance;
+
+    @NonNull
+    public static PlayStore2 getInstance(@NonNull Context context) {
+        synchronized (lock) {
+            if (instance == null) {
+                instance = new PlayStore2(context.getApplicationContext());
+            }
+            return instance;
+        }
+    }
+
+    public PlayStore2(Context context) {
+        purchasesUpdatedListener = (responseCode, purchases) -> {
+
+        };
+
+        billingClient = BillingClient.newBuilder(context)
+                .setListener(purchasesUpdatedListener)
+                .build();
+    }
 
     @Override
     public void refresh() {
